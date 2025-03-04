@@ -2,6 +2,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 sc = SparkSession.builder.master("local[*]").getOrCreate()
+print(sc.version())
 
 input_file = './data/pq/2024/10/*'
 df = sc.read.parquet(input_file)
@@ -32,24 +33,14 @@ zones_file = "taxi_zone_lookup.csv"
 df_zones = sc.read.option("header", "true").csv(zones_file)
 df_zones.registerTempTable('zones')
 
-df_w_zones = sc.sql(
+sc.sql(
     '''
-    SELECT *, pu_zone.Zone as pickup_zone, do_zone.Zone as dropoff_zone
-    FROM yellow_trips_202410
-    JOIN zones pu_zone ON PULocationID=pu_zone.LocationID
-    JOIN zones do_zone ON DOLocationID=do_zone.LocationID
+    SELECT z.LocationID, z.Zone, COUNT(t.trip_distance)
+    FROM zones AS z 
+    LEFT JOIN yellow_trips_202410 AS t
+    ON z.LocationID=t.PULocationID
+    GROUP BY 1,2
+    ORDER BY 3
+    LIMIT 5
     '''
-)
-
-df_freq_by_zone = sc.sql(
-    '''
-    SELECT pickup_zone, COUNT(*)
-    FROM yellow_w_zones
-    GROUP BY 1
-    ORDER BY 2
-    LIMIT 3
-    '''
-)
-
-df_freq_by_zone.show()
-
+).show()
